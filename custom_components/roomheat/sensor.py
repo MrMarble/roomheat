@@ -108,7 +108,7 @@ class RoomThermalModelSensor(_RoomModelEntity):
     _attr_name = "Thermal model"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["pending", "collecting", "ready", "poor"]
+    _attr_options = ["pending", "collecting", "unfit", "ready", "poor"]
     _attr_icon = "mdi:home-thermometer-outline"
 
     def __init__(self, coordinator: RoomHeatCoordinator, subentry_id: str) -> None:
@@ -127,6 +127,7 @@ class RoomThermalModelSensor(_RoomModelEntity):
             "meaning": {
                 "pending": "waiting for the first fit",
                 "collecting": "not enough data yet to judge (about 3 days of readings needed)",
+                "unfit": "enough readings, but no complete stretch of data to learn from (gaps in the inputs)",
                 "ready": "predicts clearly better than 'the temperature stays put'",
                 "poor": "does not yet beat 'the temperature stays put'",
             }[model.status],

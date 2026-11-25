@@ -192,6 +192,23 @@ def test_manager_refits_a_room_from_the_store_and_describes_it():
     assert st.usable_hours > 400
 
 
+def test_a_short_history_at_the_end_of_a_long_window_still_fits():
+    """Real case: 60 days are examined but only the last ~10 hold data."""
+    import asyncio
+    store, hub, rooms = _store_with_two_rooms(days=10)
+    mgr = MM.ModelManager(store, _run)               # looks back 60 days by default
+    asyncio.run(mgr.refit(hub, rooms, TS0 + 10 * 86400))
+    st = mgr.states["k_sala"]
+    assert st.fit is not None, "enough readings but no fit: the split ignored where the data is"
+    assert st.status in ("ready", "poor"), st.status
+    close(st.fit.result.coef["boiler"], S.TRUE["boiler"], 0.15)
+
+
+def test_enough_readings_but_nothing_to_learn_from_is_reported_as_unfit():
+    assert L.status(None, L.MIN_USABLE_STEPS + 1) == "unfit"
+    assert L.status(None, 10) == "collecting"
+
+
 def test_manager_says_collecting_when_there_is_too_little_data():
     import asyncio
     store, hub, rooms = _store_with_two_rooms(days=1)

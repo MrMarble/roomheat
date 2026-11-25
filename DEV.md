@@ -27,7 +27,7 @@ every 5-minute bucket the temperature one hour ahead is predicted.
 
 Each room's device gets two entities:
 
-- **Thermal model** (diagnostic): `pending` / `collecting` / `ready` / `poor`.
+- **Thermal model** (diagnostic): `pending` / `collecting` / `unfit` / `ready` / `poor`.
   `collecting` means under about 3 days of readings. `ready` means the 1-hour
   forecast beats "the temperature stays put" by at least 20% on data it was not
   trained on. Attributes hold the learned numbers: outdoor and neighbour time

@@ -134,9 +134,14 @@ def skill(fit: RoomFit | None) -> float | None:
 
 
 def status(fit: RoomFit | None, usable: int) -> str:
-    """collecting: not enough data to judge. ready: beats "stays put". poor: does not."""
+    """collecting: too little data to judge. unfit: enough readings but no complete stretch
+    to learn from (gaps in the inputs). ready: beats "stays put". poor: does not."""
+    if usable < MIN_USABLE_STEPS:
+        return "collecting"
+    if fit is None:
+        return "unfit"
     s = skill(fit)
-    if usable < MIN_USABLE_STEPS or s is None:
+    if s is None:
         return "collecting"
     return "ready" if s >= READY_SKILL else "poor"
 

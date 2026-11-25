@@ -126,7 +126,15 @@ def fit_room(
     """Fit one room: pick the boiler lag on the training part, score on the rest.
 
     `horizon` is the open-loop prediction length (12 steps = 1 hour).
+
+    Only the stretch that actually holds readings is used. The caller examines a long
+    window (e.g. 60 days) but a new install has data for the last few days only, and
+    splitting the whole window by position would put all of it in the hold-out part.
     """
+    known = [i for i, v in enumerate(series.temp) if v is not None]
+    if not known:
+        return None
+    series = _slice(series, known[0], known[-1] + 1)
     n = len(series.temp)
     split = int(n * (1 - holdout_fraction)) if holdout_fraction else n
     train, test = _slice(series, 0, split), _slice(series, split, n)

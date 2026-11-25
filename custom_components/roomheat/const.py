@@ -28,6 +28,8 @@ DEFAULT_CENTRAL_HOURS_END = "22:00:00"
 # Room subentry data
 CONF_AREA_ID = "area_id"
 CONF_TEMPERATURE_SENSORS = "temperature_sensors"  # in the room, averaged
+CONF_RADIATOR_IN_USE = "radiator_in_use"  # False: the room is not heated by the central heating
+CONF_INTERNAL_HEAT = "internal_heat_sensors"  # power sensors of appliances that warm the room
 CONF_VALVES = "valves"  # radiator valve climate entities; open = hvac_action heating
 CONF_DEVICE_SENSORS = "device_temperature_sensors"  # e.g. radiator valve; not averaged
 CONF_LEGACY_TEMPERATURE_SENSOR = "temperature_sensor"  # pre-0.1 single sensor

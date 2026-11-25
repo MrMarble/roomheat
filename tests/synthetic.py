@@ -16,12 +16,14 @@ TRUE = {
     "ac_heat": 0.03,       # per kW
     "ac_cool": 0.04,       # per kW
     "bias_up": 0.0005,
+    "internal": 0.06,      # per kW (0.72 C/h): office equipment
 }
 TRUE_TAU_STEPS = 6          # radiator lag: 30 min
 STEPS_PER_DAY = 288
 
 
-def make(days: int = 21, seed: int = 1, quantise: float = 0.1, sensor_noise: float = 0.03, gate: bool = False):
+def make(days: int = 21, seed: int = 1, quantise: float = 0.1, sensor_noise: float = 0.03, gate: bool = False,
+         internal: bool = False):
     """Returns (RoomSeries as the sensors would report it, true temperature list).
 
     With gate=True the room has a radiator valve that is open about 55% of the time,
@@ -61,6 +63,10 @@ def make(days: int = 21, seed: int = 1, quantise: float = 0.1, sensor_noise: flo
             valve.append(1.0 if is_open else 0.0)
     delivered = boiler if valve is None else [b * v for b, v in zip(boiler, valve)]
     filt = D.lowpass(delivered, TRUE_TAU_STEPS)
+    kw = None
+    if internal:  # equipment running on weekdays, 9:00-18:00, at a varying 0.3-0.5 kW
+        kw = [(0.3 + 0.2 * abs(math.sin(k / 37))) if 9 <= hour(k) < 18 and (k // STEPS_PER_DAY) % 7 < 5 else 0.05
+              for k in range(n)]
     t = 18.0
     truth = []
     for k in range(n):
@@ -72,6 +78,7 @@ def make(days: int = 21, seed: int = 1, quantise: float = 0.1, sensor_noise: flo
             + TRUE["ac_heat"] * ac_heat[k]
             - TRUE["ac_cool"] * ac_cool[k]
             + TRUE["bias_up"]
+            + (TRUE["internal"] * kw[k] if kw else 0.0)
         )
 
     q = lambda v: round((v + rnd.gauss(0, sensor_noise)) / quantise) * quantise if quantise else v
@@ -83,5 +90,6 @@ def make(days: int = 21, seed: int = 1, quantise: float = 0.1, sensor_noise: flo
         ac_heat=ac_heat,
         ac_cool=ac_cool,
         valve=valve,
+        internal=kw,
     )
     return series, truth

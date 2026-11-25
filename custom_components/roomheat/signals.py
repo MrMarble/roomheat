@@ -47,6 +47,7 @@ def build_signals(
     ac_power: str | None,
     valves: Iterable[str] = (),
     weather: str | None = None,
+    internal_heat: Iterable[str] = (),
 ) -> list[Signal]:
     """All signals worth recording, de-duplicated, in a stable order."""
     signals: list[Signal] = [Signal(e, e, TEMPERATURE) for e in room_sensors]
@@ -54,6 +55,7 @@ def build_signals(
         signals.append(Signal(outdoor, outdoor, TEMPERATURE))
     if ac_power:
         signals.append(Signal(ac_power, ac_power, POWER))
+    signals += [Signal(e, e, POWER) for e in internal_heat]
     if weather:
         signals += _derived(weather, WEATHER_KINDS)
     if thermostat:

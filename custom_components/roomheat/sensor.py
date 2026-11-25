@@ -18,7 +18,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from datetime import datetime, timezone
 
 from .const import DOMAIN
-from .learn import describe, skill
+from .learn import describe, skill, skill_active
 from .coordinator import RoomHeatConfigEntry, RoomHeatCoordinator
 
 
@@ -136,12 +136,16 @@ class RoomThermalModelSensor(_RoomModelEntity):
         }
         if model.fit is not None:
             attrs |= describe(model.fit.result)
+            attrs["features_dropped"] = list(model.fit.dropped)
+            attrs["exposure_hours"] = model.fit.exposure
             holdout = model.fit.holdout
             if holdout is not None:
                 attrs["forecast_error_1h_c"] = round(holdout.rmse_model, 3)
                 attrs["stays_put_error_1h_c"] = round(holdout.rmse_persistence, 3)
                 s = skill(model.fit)
                 attrs["skill"] = None if s is None else round(s, 3)
+                sa = skill_active(model.fit)
+                attrs["skill_where_heating_changes"] = None if sa is None else round(sa, 3)
         return attrs
 
 

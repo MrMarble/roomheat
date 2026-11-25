@@ -255,6 +255,69 @@ def test_stale_readings_give_no_prediction():
     assert mgr.states["k_sala"].predicted is None
 
 
+def test_appliance_power_is_learned_as_heat():
+    series, _ = S.make(internal=True)
+    rf = D.fit_room(series)
+    assert "internal" in rf.result.active and "internal" not in rf.dropped
+    close(rf.result.coef["internal"], S.TRUE["internal"], 0.15)
+    close(L.describe(rf.result)["internal_heat_gain_c_per_h_per_kw"], S.TRUE["internal"] * 12, 0.15)
+    # without the sensor the daily pattern is unexplained and the forecast is worse
+    series.internal = None
+    blind = D.fit_room(series)
+    assert blind.holdout.rmse_model > 1.3 * rf.holdout.rmse_model
+
+
+def test_a_room_whose_radiator_is_off_ignores_the_central_heating():
+    import asyncio
+    store, hub, rooms = _store_with_two_rooms()
+    off = [L.RoomSpec(r.key, r.area_id, r.name, r.sensors, r.valves, r.adjacent_area_ids, radiator_in_use=False)
+           if r.key == "k_sala" else r for r in rooms]
+    mgr = MM.ModelManager(store, _run)
+    asyncio.run(mgr.refit(hub, off, TS0 + 21 * 86400))
+    fit = mgr.states["k_sala"].fit
+    assert "boiler" not in fit.result.active and fit.exposure["boiler"] == 0.0
+
+
+def test_a_feature_that_does_nothing_is_left_out_and_reported():
+    import math
+    series, _ = S.make(seed=2)
+    rnd, on, decoy = random.Random(4), 0.0, []
+    for _ in series.temp:
+        if rnd.random() < 0.02:
+            on = 1.5 if rnd.random() < 0.4 else 0.0
+        decoy.append(on)
+    filt, t, temp = D.lowpass(series.boiler, S.TRUE_TAU_STEPS), 18.0, []
+    for k in range(len(series.temp)):  # a temperature with no cooling effect at all
+        temp.append(round(t / 0.1) * 0.1)
+        t += (S.TRUE["outdoor"] * (series.outdoor[k] - t) + S.TRUE["neighbours"] * (series.neighbours[k] - t)
+              + S.TRUE["boiler"] * filt[k] + S.TRUE["bias_up"])
+    series.temp, series.ac_cool, series.ac_heat = temp, decoy, [0.0] * len(temp)
+    rf = D.fit_room(series)
+    assert "ac_cool" in rf.dropped and "ac_cool" not in rf.result.active
+    assert "boiler" in rf.result.active  # the real effects are kept
+
+
+def test_real_effects_survive_feature_selection():
+    rf = D.fit_room(S.make()[0])
+    assert rf.dropped == (), rf.dropped
+
+
+def test_exposure_hours_say_how_long_each_input_was_on():
+    series, _ = S.make()
+    ex = D.fit_room(series).exposure
+    assert 100 < ex["boiler"] < 125 and ex["ac_heat"] == 14.0 and ex["ac_cool"] == 14.0 and ex["internal"] == 0.0
+
+
+def test_status_is_judged_where_heating_changes_when_there_is_enough_of_it():
+    rf = D.fit_room(S.make()[0])
+    assert rf.holdout.n_active >= L.MIN_ACTIVE_WINDOWS
+    assert L.skill_active(rf) is not None and L.judging_skill(rf) == L.skill_active(rf)
+    flat = D.fit_room(S.make()[0])               # same fit, but pretend almost nothing changed
+    import dataclasses
+    quiet = dataclasses.replace(flat, holdout=dataclasses.replace(flat.holdout, n_active=3))
+    assert L.skill_active(quiet) is None and L.judging_skill(quiet) == L.skill(quiet)
+
+
 def test_symmetric_adjacency():
     adj = M.symmetric_adjacency({"a": [], "b": ["a", "ghost", "b"], "c": ["b"]})
     assert adj == {"a": ("b",), "b": ("a", "c"), "c": ("b",)}, adj

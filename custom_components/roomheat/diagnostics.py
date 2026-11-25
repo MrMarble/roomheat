@@ -8,7 +8,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .coordinator import RoomHeatConfigEntry
-from .learn import describe, skill
+from .learn import describe, judging_skill, skill, skill_active
 from .history_store import HistoryStore
 
 
@@ -54,10 +54,17 @@ async def async_get_config_entry_diagnostics(
             info |= {
                 "learned": describe(result),
                 "features_used": list(result.active),
+                "features_dropped": list(state.fit.dropped),
+                "exposure_hours": state.fit.exposure,
                 "training_windows": result.n,
                 "forecast_error_1h_c": None if holdout is None else round(holdout.rmse_model, 3),
                 "stays_put_error_1h_c": None if holdout is None else round(holdout.rmse_persistence, 3),
                 "skill": None if skill(state.fit) is None else round(skill(state.fit), 3),
+                "skill_where_heating_changes": None
+                if skill_active(state.fit) is None
+                else round(skill_active(state.fit), 3),
+                "windows_where_heating_changes": 0 if holdout is None else holdout.n_active,
+                "status_based_on": "heating-change windows" if skill_active(state.fit) is not None else "all windows",
             }
         models[room.name] = info
 
@@ -70,6 +77,8 @@ async def async_get_config_entry_diagnostics(
                 "temperature_sensors": list(room.temperature_sensors),
                 "device_sensors": list(room.device_sensors),
                 "valves": list(room.valves),
+                "radiator_in_use": room.radiator_in_use,
+                "internal_heat_sensors": list(room.internal_heat),
                 "adjacent": list(room.adjacent_area_ids),
             }
             for room in coordinator.rooms().values()

@@ -35,6 +35,8 @@ from .const import (
     CONF_LEGACY_TEMPERATURE_SENSOR,
     CONF_OUTDOOR_SENSOR,
     CONF_TEMPERATURE_SENSORS,
+    CONF_INTERNAL_HEAT,
+    CONF_RADIATOR_IN_USE,
     CONF_VALVES,
     CONF_WEATHER_ENTITY,
     DEFAULT_CENTRAL_HEAT_PRICE,
@@ -210,6 +212,14 @@ class RoomSubentryFlow(ConfigSubentryFlow):
                 CONF_VALVES, default=defaults.get(CONF_VALVES, [])
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="climate", multiple=True)
+            ),
+            vol.Optional(
+                CONF_RADIATOR_IN_USE, default=defaults.get(CONF_RADIATOR_IN_USE, True)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_INTERNAL_HEAT, default=defaults.get(CONF_INTERNAL_HEAT, [])
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor", device_class="power", multiple=True)
             ),
         }
         options = self._other_room_areas(area_id)

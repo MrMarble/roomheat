@@ -7,6 +7,7 @@ Over one 5-minute step the room temperature changes by
        + b_boiler · u_boiler              central heating (filtered, see below)
        + b_ac_heat · u_ac_heat            AC heating  (kW × heating flag)
        − b_ac_cool · u_ac_cool            AC cooling  (kW × cooling flag)
+       + b_internal · u_internal          measured appliances in the room (kW), if any
        + c                                everything unmodelled (sun, people, other rooms…)
 
 This is linear in the unknown coefficients, so it is learned by non-negative
@@ -39,6 +40,7 @@ FEATURES = (
     "boiler",
     "ac_heat",
     "ac_cool",
+    "internal",
     "bias_up",
     "bias_down",
 )
@@ -54,6 +56,7 @@ class StepRow:
     boiler: float | None = None  # filtered boiler-on fraction, 0..1
     ac_heat: float | None = None  # AC heating input (kW x flag)
     ac_cool: float | None = None  # AC cooling input (kW x flag), positive number
+    internal: float | None = None  # measured appliance heat in the room, kW
 
 
 def feature_values(row: StepRow, names: Sequence[str], t: float | None = None) -> list[float] | None:
@@ -76,6 +79,8 @@ def feature_values(row: StepRow, names: Sequence[str], t: float | None = None) -
             v = row.ac_heat
         elif name == "ac_cool":
             v = None if row.ac_cool is None else -row.ac_cool
+        elif name == "internal":
+            v = row.internal
         elif name == "bias_up":
             v = 1.0
         elif name == "bias_down":
@@ -130,6 +135,14 @@ class NormalEquations:
             self.xty[i] += wxi * y
         self.yty += w * y * y
         self.weight += w
+
+    def subset(self, idx: Sequence[int]) -> "NormalEquations":
+        """The same problem restricted to some of the features."""
+        sub = NormalEquations(len(idx))
+        sub.xtx = [[self.xtx[i][j] for j in idx] for i in idx]
+        sub.xty = [self.xty[i] for i in idx]
+        sub.yty, sub.weight = self.yty, self.weight
+        return sub
 
     def decay(self, factor: float) -> None:
         """Multiply all statistics by `factor` (< 1 forgets old data)."""
@@ -189,21 +202,14 @@ class FitResult:
     sse_persistence: float  # of predicting "no change"
 
 
-def fit(
-    rows: Sequence[StepRow],
-    active: Sequence[str],
-    span: int = 6,
-    tau_boiler_steps: int = 0,
-    ridge: float = 1e-6,
-) -> FitResult | None:
-    """Fit the coefficients on `rows` (consecutive 5-minute steps).
+def accumulate(rows: Sequence[StepRow], names: Sequence[str], span: int = 6) -> NormalEquations | None:
+    """Least-squares statistics over every complete `span`-step window of `rows`.
 
     The target is the temperature change over `span` steps and the regressors are
     the feature sums over those steps. Using 30 minutes instead of 5 keeps real
-    sensors' 0.1 °C resolution from drowning the signal. Returns None when no
-    window is complete.
+    sensors' 0.1 °C resolution from drowning the signal. None if no window is complete.
     """
-    names = tuple(active)
+    names = tuple(names)
     feats = [feature_values(r, names) for r in rows]
     ne = NormalEquations(len(names))
     for i in range(len(rows) - span):
@@ -215,20 +221,36 @@ def fit(
             continue
         x = [sum(f[k] for f in window) for k in range(len(names))]  # type: ignore[index]
         ne.add(x, t1 - t0)
-    if ne.weight == 0:
-        return None
+    return ne if ne.weight else None
+
+
+def result_from(
+    ne: NormalEquations, names: Sequence[str], span: int, tau_boiler_steps: int, ridge: float = 1e-6
+) -> FitResult:
     beta = ne.solve_nnls(ridge)
     coef = {name: 0.0 for name in FEATURES}
     coef.update(zip(names, beta))
     return FitResult(
         coef=coef,
-        active=names,
+        active=tuple(names),
         tau_boiler_steps=tau_boiler_steps,
         span=span,
         n=int(ne.weight),
         sse=ne.sse(beta),
         sse_persistence=ne.yty,
     )
+
+
+def fit(
+    rows: Sequence[StepRow],
+    active: Sequence[str],
+    span: int = 6,
+    tau_boiler_steps: int = 0,
+    ridge: float = 1e-6,
+) -> FitResult | None:
+    """Fit the coefficients on `rows` (consecutive 5-minute steps)."""
+    ne = accumulate(rows, active, span)
+    return None if ne is None else result_from(ne, active, span, tau_boiler_steps, ridge)
 
 
 def step_delta(result: FitResult, row: StepRow, t: float | None = None) -> float | None:
@@ -256,17 +278,38 @@ def simulate(result: FitResult, rows: Sequence[StepRow], start: int, steps: int)
     return t
 
 
+# An input counts as "changing" inside a window when it moves by more than this
+# (boiler as a 0..1 fraction, the others in kW). Those windows are where a model
+# earns its keep; in a flat stretch "the temperature stays put" is hard to beat.
+CHANGE_THRESHOLD = {"boiler": 0.3, "ac_heat": 0.3, "ac_cool": 0.3, "internal": 0.2}
+
+
 @dataclass(frozen=True, slots=True)
 class Evaluation:
     n: int
     rmse_model: float
     rmse_persistence: float
+    n_active: int = 0  # windows in which heating, AC or appliances change
+    rmse_model_active: float | None = None
+    rmse_persistence_active: float | None = None
+
+
+def _inputs_change(rows: Sequence[StepRow], i: int, horizon: int, names: Sequence[str]) -> bool:
+    for name in names:
+        vals = [v for v in (getattr(rows[i + j], name) for j in range(horizon)) if v is not None]
+        if vals and max(vals) - min(vals) > CHANGE_THRESHOLD[name]:
+            return True
+    return False
 
 
 def evaluate(result: FitResult, rows: Sequence[StepRow], horizon: int, stride: int = 3) -> Evaluation | None:
-    """Open-loop error `horizon` steps ahead, against "the temperature stays put"."""
-    se_model = se_pers = 0.0
-    n = 0
+    """Open-loop error `horizon` steps ahead, against "the temperature stays put".
+
+    Also scored separately on the windows where heating, AC or appliances change.
+    """
+    drivers = [n for n in result.active if n in CHANGE_THRESHOLD]
+    se_model = se_pers = a_model = a_pers = 0.0
+    n = n_active = 0
     for i in range(0, len(rows) - horizon, stride):
         t0, actual = rows[i].t, rows[i + horizon].t
         if t0 is None or actual is None:
@@ -274,9 +317,21 @@ def evaluate(result: FitResult, rows: Sequence[StepRow], horizon: int, stride: i
         pred = simulate(result, rows, i, horizon)
         if pred is None:
             continue
-        se_model += (pred - actual) ** 2
-        se_pers += (t0 - actual) ** 2
+        m, p = (pred - actual) ** 2, (t0 - actual) ** 2
+        se_model += m
+        se_pers += p
         n += 1
+        if _inputs_change(rows, i, horizon, drivers):
+            a_model += m
+            a_pers += p
+            n_active += 1
     if n == 0:
         return None
-    return Evaluation(n, math.sqrt(se_model / n), math.sqrt(se_pers / n))
+    return Evaluation(
+        n,
+        math.sqrt(se_model / n),
+        math.sqrt(se_pers / n),
+        n_active,
+        math.sqrt(a_model / n_active) if n_active else None,
+        math.sqrt(a_pers / n_active) if n_active else None,
+    )

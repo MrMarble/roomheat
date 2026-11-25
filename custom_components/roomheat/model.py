@@ -35,6 +35,8 @@ class RoomConfig:
     temperature_sensors: tuple[str, ...]
     device_sensors: tuple[str, ...] = ()
     valves: tuple[str, ...] = ()
+    radiator_in_use: bool = True
+    internal_heat: tuple[str, ...] = ()
     adjacent_area_ids: tuple[str, ...] = ()
 
 

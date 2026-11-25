@@ -45,6 +45,8 @@ from .const import (
     CONF_DEVICE_SENSORS,
     CONF_LEGACY_TEMPERATURE_SENSOR,
     CONF_TEMPERATURE_SENSORS,
+    CONF_INTERNAL_HEAT,
+    CONF_RADIATOR_IN_USE,
     CONF_VALVES,
     CONF_WEATHER_ENTITY,
     DOMAIN,
@@ -116,6 +118,8 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
                 ),
                 device_sensors=tuple(sub.data.get(CONF_DEVICE_SENSORS, [])),
                 valves=tuple(sub.data.get(CONF_VALVES, [])),
+                radiator_in_use=sub.data.get(CONF_RADIATOR_IN_USE, True),
+                internal_heat=tuple(sub.data.get(CONF_INTERNAL_HEAT, [])),
                 adjacent_area_ids=adjacent[area_id],
             )
         return rooms
@@ -237,6 +241,7 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
                 for e in (*r.temperature_sensors, *r.device_sensors)
             ],
             valves=[v for r in self.rooms().values() for v in r.valves],
+            internal_heat=[e for r in self.rooms().values() for e in r.internal_heat],
             outdoor=conf.get(CONF_OUTDOOR_SENSOR),
             thermostat=conf.get(CONF_CENTRAL_THERMOSTAT),
             ac=conf.get(CONF_AC_UNIT),
@@ -282,6 +287,8 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
                 name=r.name,
                 sensors=r.temperature_sensors,
                 valves=r.valves,
+                radiator_in_use=r.radiator_in_use,
+                internal_heat=r.internal_heat,
                 adjacent_area_ids=r.adjacent_area_ids,
             )
             for r in self.rooms().values()

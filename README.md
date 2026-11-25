@@ -12,6 +12,9 @@ other source. It is inspired by [RoomMind](https://github.com/snazzybean/roommin
 
 - **Rooms from areas.** Add a room per Home Assistant area, with its temperature
   sensors, optional radiator-valve sensors, radiator valves and adjacent rooms.
+  Two optional per-room settings tell the model what it cannot see: *Central heating
+  radiator in use* (turn it off for a room whose radiator is normally off) and
+  *Appliance power sensors* (computers and the like, whose heat it then learns).
 - **Central heating window.** Season dates and daily hours; it knows when central
   heating is available. The AC covers the rest.
 - **A history of its own.** Every 5 minutes it stores room and outdoor

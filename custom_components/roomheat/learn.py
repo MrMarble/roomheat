@@ -17,6 +17,7 @@ from .thermal import STEP_HOURS, FitResult, feature_values, simulate
 STEP = SAMPLE_SECONDS
 MIN_USABLE_STEPS = 3 * 288  # fewer than ~3 days of room readings and a fit is noise
 READY_SKILL = 0.2  # forecast must beat "stays put" by this much to count as ready
+MIN_ACTIVE_WINDOWS = 40  # windows where heating changes, needed to judge on those alone
 FRESH_STEPS = 3  # a prediction needs a reading no older than this many steps
 
 
@@ -28,6 +29,8 @@ class RoomSpec:
     sensors: tuple[str, ...]
     valves: tuple[str, ...] = ()
     adjacent_area_ids: tuple[str, ...] = ()
+    radiator_in_use: bool = True  # False: the room is not heated by the central heating
+    internal_heat: tuple[str, ...] = ()  # power sensors of appliances that warm the room
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +49,7 @@ class HubSpec:
 def needed_series(hub: HubSpec, rooms: Sequence[RoomSpec]) -> list[str]:
     names = {s for r in rooms for s in r.sensors}
     names |= {action_series(v, HEATING) for r in rooms for v in r.valves}
+    names |= {s for r in rooms for s in r.internal_heat}
     names |= {n for n in (hub.outdoor, hub.ac_power) if n}
     if hub.thermostat:
         names.add(action_series(hub.thermostat, HEATING))
@@ -118,7 +122,18 @@ def build_dataset(
         ]
         valve_cols = [column(action_series(v, HEATING)) for v in r.valves]
         valve = [mean_of([c[i] for c in valve_cols]) for i in range(n)] if valve_cols else None
-        out[r.key] = RoomSeries(temps[r.area_id], outdoor, neighbours, boiler, ac_heat, ac_cool, valve)
+        internal = None
+        if r.internal_heat:  # watts -> kW, summed over the room's sensors
+            cols = [column(s) for s in r.internal_heat]
+            internal = [
+                None if not (got := [c[i] for c in cols if c[i] is not None]) else sum(got) / 1000
+                for i in range(n)
+            ]
+        # a room whose radiator is off gets no central heat, whatever the thermostat asks
+        room_boiler = boiler if r.radiator_in_use else [None] * n
+        out[r.key] = RoomSeries(
+            temps[r.area_id], outdoor, neighbours, room_boiler, ac_heat, ac_cool, valve, internal
+        )
     return Dataset(start, n, out, outdoor, boiler, ac_heat, ac_cool)
 
 
@@ -133,6 +148,24 @@ def skill(fit: RoomFit | None) -> float | None:
     return 1 - fit.holdout.rmse_model / fit.holdout.rmse_persistence
 
 
+def skill_active(fit: RoomFit | None) -> float | None:
+    """The same, only over windows where heating, AC or appliances change.
+
+    In a flat stretch "the temperature stays put" is hard to beat, so those windows
+    say little. None when the hold-out has too few windows of that kind.
+    """
+    h = None if fit is None else fit.holdout
+    if h is None or h.n_active < MIN_ACTIVE_WINDOWS or not h.rmse_persistence_active:
+        return None
+    return 1 - h.rmse_model_active / h.rmse_persistence_active
+
+
+def judging_skill(fit: RoomFit | None) -> float | None:
+    """What the status is based on: where it matters when there is enough of it."""
+    active = skill_active(fit)
+    return active if active is not None else skill(fit)
+
+
 def status(fit: RoomFit | None, usable: int) -> str:
     """collecting: too little data to judge. unfit: enough readings but no complete stretch
     to learn from (gaps in the inputs). ready: beats "stays put". poor: does not."""
@@ -140,7 +173,7 @@ def status(fit: RoomFit | None, usable: int) -> str:
         return "collecting"
     if fit is None:
         return "unfit"
-    s = skill(fit)
+    s = judging_skill(fit)
     if s is None:
         return "collecting"
     return "ready" if s >= READY_SKILL else "poor"
@@ -163,6 +196,7 @@ def describe(result: FitResult) -> dict[str, float | int | None]:
         "radiator_lag_min": result.tau_boiler_steps * STEP // 60 if "boiler" in active else None,
         "ac_heating_gain_c_per_h_per_kw": gain("ac_heat"),
         "ac_cooling_gain_c_per_h_per_kw": gain("ac_cool"),
+        "internal_heat_gain_c_per_h_per_kw": gain("internal"),
         "unmodelled_heat_c_per_h": round((c["bias_up"] - c["bias_down"]) * per_hour, 3),
     }
 

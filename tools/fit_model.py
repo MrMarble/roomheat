@@ -42,6 +42,8 @@ def load_config(entries_path: Path) -> tuple[dict, list]:
             sensors=tuple(s["data"].get("temperature_sensors") or [s["data"]["temperature_sensor"]]),
             valves=tuple(s["data"].get("valves", [])),
             adjacent_area_ids=adjacency[s["data"]["area_id"]],
+            radiator_in_use=s["data"].get("radiator_in_use", True),
+            internal_heat=tuple(s["data"].get("internal_heat_sensors", [])),
         )
         for s in subs
     ]
@@ -116,7 +118,8 @@ def main() -> int:
         series = data.rooms[room.key]
         usable = L.usable_steps(series)
         print(f"== {room.name}   sensors: {len(room.sensors)}   valves: {len(room.valves)}   neighbours: "
-              f"{', '.join(room.adjacent_area_ids) or 'none'}   temperature data: {share(series.temp)}")
+              f"{', '.join(room.adjacent_area_ids) or 'none'}   temperature data: {share(series.temp)}"
+              f"{'' if room.radiator_in_use else '   (radiator off)'}")
         if usable < L.MIN_USABLE_STEPS:
             print(f"   not enough data yet ({usable * STEP / 3600:.0f} h of readings; "
                   f"need about {L.MIN_USABLE_STEPS * STEP / 3600:.0f} h). Keep collecting.\n")
@@ -149,11 +152,23 @@ def report(rf, horizon: int) -> None:
         line("AC heating", f"+{d['ac_heating_gain_c_per_h_per_kw']:.2f} °C/h per kW")
     if d["ac_cooling_gain_c_per_h_per_kw"] is not None:
         line("AC cooling", f"-{d['ac_cooling_gain_c_per_h_per_kw']:.2f} °C/h per kW")
+    if d["internal_heat_gain_c_per_h_per_kw"] is not None:
+        line("appliances", f"+{d['internal_heat_gain_c_per_h_per_kw']:.2f} °C/h per kW")
+    if rf.dropped:
+        line("left out (did not help)", ", ".join(rf.dropped))
+    line("hours each input was on", ", ".join(f"{k} {v:g}" for k, v in rf.exposure.items() if v) or "none")
     line("unmodelled heat", f"{d['unmodelled_heat_c_per_h']:+.2f} °C/h")
     h, s = rf.holdout, L.skill(rf)
     if h and s is not None:
         print(f"   {horizon * STEP // 60}-min-ahead error on unseen data: model {h.rmse_model:.2f} °C vs "
-              f"'stays put' {h.rmse_persistence:.2f} °C  (skill {s:+.0%}, {h.n} checks)\n")
+              f"'stays put' {h.rmse_persistence:.2f} °C  (skill {s:+.0%}, {h.n} checks)")
+        sa = L.skill_active(rf)
+        if sa is not None:
+            print(f"   where heating changes: model {h.rmse_model_active:.2f} °C vs 'stays put' "
+                  f"{h.rmse_persistence_active:.2f} °C  (skill {sa:+.0%}, {h.n_active} checks)  <- status is based on this")
+        else:
+            print(f"   where heating changes: too few windows ({h.n_active}) to judge")
+        print()
     else:
         print("   (no hold-out score: not enough data left after the training split)\n")
 

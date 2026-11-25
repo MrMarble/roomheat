@@ -30,7 +30,8 @@ Each room's device gets two entities:
 - **Thermal model** (diagnostic): `pending` / `collecting` / `unfit` / `ready` / `poor`.
   `collecting` means under about 3 days of readings. `ready` means the 1-hour
   forecast beats "the temperature stays put" by at least 20% on data it was not
-  trained on. Attributes hold the learned numbers: outdoor and neighbour time
+  trained on, judged over the windows where heating changes when there are enough
+  of them. The model also drops inputs that do not help on a validation stretch. Attributes hold the learned numbers: outdoor and neighbour time
   constants, central heating gain and radiator lag, AC gains, unmodelled heat,
   forecast error and skill.
 - **Predicted temperature (1 h)**: where the room is heading if heating, AC,

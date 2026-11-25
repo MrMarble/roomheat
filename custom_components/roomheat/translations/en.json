@@ -86,13 +86,17 @@
             "temperature_sensors": "Room temperature sensors",
             "device_temperature_sensors": "Device temperature sensors",
             "valves": "Radiator valves",
-            "adjacent_rooms": "Adjacent rooms"
+            "adjacent_rooms": "Adjacent rooms",
+            "radiator_in_use": "Central heating radiator in use",
+            "internal_heat_sensors": "Appliance power sensors"
           },
           "data_description": {
             "temperature_sensors": "Sensors placed in the room; the room temperature is their average. Pre-filled from this area when one is found.",
             "device_temperature_sensors": "Optional. Sensors on a heating device, e.g. a radiator valve. They are not averaged into the room temperature.",
             "valves": "Optional. The room's radiator valves (climate entities). Open while their action is heating; the model uses this to know when the radiators really heat this room. Leave empty for radiators without a controllable valve.",
-            "adjacent_rooms": "Other configured rooms that share a wall, floor or open door with this one."
+            "adjacent_rooms": "Other configured rooms that share a wall, floor or open door with this one.",
+            "radiator_in_use": "Turn this off if the room's radiator is normally off (for example a room kept warm by equipment). The central heating is then ignored for this room instead of being learned as an effect it does not have.",
+            "internal_heat_sensors": "Optional. Power sensors of appliances that warm the room, such as computers. Almost every watt becomes heat, so the model can learn how much each kW warms the room."
           }
         },
         "reconfigure": {
@@ -101,7 +105,13 @@
             "temperature_sensors": "Room temperature sensors",
             "device_temperature_sensors": "Device temperature sensors",
             "valves": "Radiator valves",
-            "adjacent_rooms": "Adjacent rooms"
+            "adjacent_rooms": "Adjacent rooms",
+            "radiator_in_use": "Central heating radiator in use",
+            "internal_heat_sensors": "Appliance power sensors"
+          },
+          "data_description": {
+            "radiator_in_use": "Turn this off if the room's radiator is normally off (for example a room kept warm by equipment). The central heating is then ignored for this room instead of being learned as an effect it does not have.",
+            "internal_heat_sensors": "Optional. Power sensors of appliances that warm the room, such as computers. Almost every watt becomes heat, so the model can learn how much each kW warms the room."
           }
         }
       },

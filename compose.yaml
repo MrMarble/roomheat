@@ -1,0 +1,13 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: roomheat-dev-ha
+    restart: unless-stopped
+    ports:
+      - "8124:8123"   # 8124 so it doesn't clash with a HA already running on this machine
+    environment:
+      TZ: Europe/Madrid
+    volumes:
+      - ./dev/config:/config
+      # Live-mount the integration: edit here, restart the container to apply.
+      - ./custom_components/roomheat:/config/custom_components/roomheat

@@ -1,0 +1,18 @@
+default_config:
+
+logger:
+  default: warning
+  logs:
+    custom_components.roomheat: debug
+    custom_components.remote_homeassistant: info
+
+# Fake entities for edge cases the real data won't produce (set them in
+# Developer Tools -> States, or via these helpers).
+input_number:
+  test_room_temp:
+    name: Test room temp
+    min: -10
+    max: 40
+    step: 0.5
+    initial: 20
+    unit_of_measurement: "°C"

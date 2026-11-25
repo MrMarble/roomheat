@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "RoomHeat",
+        "description": "Global settings and the central heating schedule. Rooms are added afterwards with “Add room”.",
+        "data": {
+          "outdoor_temperature_sensor": "Outdoor temperature sensor",
+          "central_thermostat": "Central heating thermostat",
+          "ac_unit": "Air conditioning unit",
+          "central_season_start": "Central heating season: first day",
+          "central_season_end": "Central heating season: last day",
+          "central_hours_start": "Central heating: daily start",
+          "central_hours_end": "Central heating: daily end",
+          "ac_power_sensor": "AC power sensor",
+          "central_heat_price": "Central heating price",
+          "electricity_price": "Electricity price",
+          "weather_entity": "Weather entity"
+        },
+        "data_description": {
+          "outdoor_temperature_sensor": "Optional. Used by the thermal model.",
+          "central_thermostat": "The thermostat that calls for central heating (the living room one). Optional.",
+          "ac_unit": "The ducted heat-pump unit, used when central heating is not available. Optional.",
+          "central_season_start": "Update these dates each year.",
+          "central_hours_end": "Central heating is only available between these times, every day of the season.",
+          "ac_power_sensor": "Optional. Measured electrical power of the AC; used to know when it really runs and what it costs.",
+          "central_heat_price": "Price per kWh of heat consumed. Leave out any fixed fee: it does not change with usage.",
+          "electricity_price": "Final price per kWh including taxes. Used to cost the AC.",
+          "weather_entity": "Optional. Replaces the outdoor sensor when it is unavailable, and records cloud cover and wind, which explain solar gain and draughts."
+        }
+      },
+      "reconfigure": {
+        "title": "RoomHeat",
+        "data": {
+          "outdoor_temperature_sensor": "Outdoor temperature sensor",
+          "central_thermostat": "Central heating thermostat",
+          "ac_unit": "Air conditioning unit",
+          "central_season_start": "Central heating season: first day",
+          "central_season_end": "Central heating season: last day",
+          "central_hours_start": "Central heating: daily start",
+          "central_hours_end": "Central heating: daily end",
+          "ac_power_sensor": "AC power sensor",
+          "central_heat_price": "Central heating price",
+          "electricity_price": "Electricity price",
+          "weather_entity": "Weather entity"
+        },
+        "data_description": {
+          "outdoor_temperature_sensor": "Optional. Used by the thermal model.",
+          "central_thermostat": "The thermostat that calls for central heating (the living room one). Optional.",
+          "ac_unit": "The ducted heat-pump unit, used when central heating is not available. Optional.",
+          "central_season_start": "Update these dates each year.",
+          "central_hours_end": "Central heating is only available between these times, every day of the season.",
+          "ac_power_sensor": "Optional. Measured electrical power of the AC; used to know when it really runs and what it costs.",
+          "central_heat_price": "Price per kWh of heat consumed. Leave out any fixed fee: it does not change with usage.",
+          "electricity_price": "Final price per kWh including taxes. Used to cost the AC.",
+          "weather_entity": "Optional. Replaces the outdoor sensor when it is unavailable, and records cloud cover and wind, which explain solar gain and draughts."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "RoomHeat is already configured.",
+      "reconfigure_successful": "Settings updated."
+    },
+    "error": {
+      "season_order": "The season's last day must not be before its first day."
+    }
+  },
+  "config_subentries": {
+    "room": {
+      "entry_type": "Room",
+      "initiate_flow": {
+        "user": "Add room",
+        "reconfigure": "Reconfigure room"
+      },
+      "step": {
+        "user": {
+          "title": "Add room",
+          "description": "Pick the Home Assistant area this room corresponds to.",
+          "data": {
+            "area_id": "Area"
+          }
+        },
+        "sensors": {
+          "title": "{area}",
+          "data": {
+            "temperature_sensors": "Room temperature sensors",
+            "device_temperature_sensors": "Device temperature sensors",
+            "valves": "Radiator valves",
+            "adjacent_rooms": "Adjacent rooms"
+          },
+          "data_description": {
+            "temperature_sensors": "Sensors placed in the room; the room temperature is their average. Pre-filled from this area when one is found.",
+            "device_temperature_sensors": "Optional. Sensors on a heating device, e.g. a radiator valve. They are not averaged into the room temperature.",
+            "valves": "Optional. The room's radiator valves (climate entities). Open while their action is heating; the model uses this to know when the radiators really heat this room. Leave empty for radiators without a controllable valve.",
+            "adjacent_rooms": "Other configured rooms that share a wall, floor or open door with this one."
+          }
+        },
+        "reconfigure": {
+          "title": "{area}",
+          "data": {
+            "temperature_sensors": "Room temperature sensors",
+            "device_temperature_sensors": "Device temperature sensors",
+            "valves": "Radiator valves",
+            "adjacent_rooms": "Adjacent rooms"
+          }
+        }
+      },
+      "error": {
+        "already_configured": "This area is already a room."
+      },
+      "abort": {
+        "reconfigure_successful": "Room updated."
+      }
+    }
+  }
+}

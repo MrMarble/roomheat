@@ -1,0 +1,18 @@
+{
+  "domain": "roomheat",
+  "name": "RoomHeat",
+  "after_dependencies": [
+    "recorder"
+  ],
+  "codeowners": [
+    "@MrMarble"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/MrMarble/roomheat",
+  "integration_type": "hub",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/MrMarble/roomheat/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

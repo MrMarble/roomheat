@@ -6,7 +6,7 @@ you see in HA are exactly the ones the offline tool computes.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from .dataset import RoomFit, RoomSeries, fit_room, make_rows
@@ -37,6 +37,10 @@ class HubSpec:
     thermostat: str | None = None
     ac: str | None = None
     ac_power: str | None = None
+    # Is central heating available at this timestamp? The thermostat's "heating" only
+    # means it is *asking* for heat; outside the building's heating hours none arrives.
+    # None means "no schedule known": the thermostat is taken at its word.
+    central_open: Callable[[int], bool] | None = None
 
 
 def needed_series(hub: HubSpec, rooms: Sequence[RoomSpec]) -> list[str]:
@@ -88,6 +92,8 @@ def build_dataset(
         fallback = column(action_series(hub.weather, WEATHER_TEMPERATURE))
         outdoor = [o if o is not None else w for o, w in zip(outdoor, fallback)]
     boiler = column(hub.thermostat and action_series(hub.thermostat, HEATING))
+    if hub.central_open is not None:  # heat arrives only when it is both asked for and available
+        boiler = [None if b is None else b * float(hub.central_open(ts)) for b, ts in zip(boiler, grid)]
 
     kw = [None if p is None else p / 1000 for p in column(hub.ac_power)]
 

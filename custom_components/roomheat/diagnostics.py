@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .coordinator import RoomHeatConfigEntry
+from .learn import describe, skill
 from .history_store import HistoryStore
 
 
@@ -35,6 +36,30 @@ async def async_get_config_entry_diagnostics(
         }
     for name in signals.keys() - summary.keys():  # configured but no rows yet
         series[name] = {"rows": 0, "still_recorded": True}
+
+    models: dict[str, Any] = {}
+    for key, room in coordinator.rooms().items():
+        state = coordinator.models.states.get(key)
+        if state is None:
+            continue
+        info: dict[str, Any] = {
+            "status": state.status,
+            "usable_hours": round(state.usable_hours, 1),
+            "trained_at": _iso(state.trained_at),
+            "predicted_1h": state.predicted,
+            "last_forecast_error_c": state.last_error,
+        }
+        if state.fit is not None:
+            result, holdout = state.fit.result, state.fit.holdout
+            info |= {
+                "learned": describe(result),
+                "features_used": list(result.active),
+                "training_windows": result.n,
+                "forecast_error_1h_c": None if holdout is None else round(holdout.rmse_model, 3),
+                "stays_put_error_1h_c": None if holdout is None else round(holdout.rmse_persistence, 3),
+                "skill": None if skill(state.fit) is None else round(skill(state.fit), 3),
+            }
+        models[room.name] = info
 
     hub = coordinator.hub
     return {
@@ -66,6 +91,7 @@ async def async_get_config_entry_diagnostics(
             "cloud_coverage": hub.cloud_coverage,
             "wind_speed": hub.wind_speed,
         },
+        "models": models,
         "history": {
             "last_write": _iso(coordinator.last_write),
             "last_backfill": coordinator.backfill_result,

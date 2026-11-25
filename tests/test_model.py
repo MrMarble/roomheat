@@ -141,7 +141,7 @@ def test_store_summary_counts_rows_by_source():
 TS0 = 1_700_000_100  # a multiple of 300
 
 
-def _store_with_two_rooms(days=21, gate=True):
+def _store_with_two_rooms(days=21, gate=True, night_calls=False):
     """A real store on disk holding a synthetic 'sala' (heated) and 'vecina' (its neighbour)."""
     import os, tempfile
     series, _ = S.make(days=days, gate=gate)
@@ -151,13 +151,22 @@ def _store_with_two_rooms(days=21, gate=True):
         rows.extend((name, TS0 + 300 * i, float(v), H.SRC_LIVE) for i, v in enumerate(vals) if v is not None)
 
     put("sensor.sala", series.temp); put("sensor.vecina", series.neighbours)
-    put("sensor.out", series.outdoor); put("climate.boiler:heating", series.boiler)
+    asks = list(series.boiler)
+    if night_calls:  # the thermostat also asks for heat at night, when the building gives none
+        rnd, on = __import__("random").Random(5), False
+        for k in range(len(asks)):
+            if not 9 <= (k % 288) / 12 < 22:
+                on = (not on) if rnd.random() < 0.08 else on
+                asks[k] = 1.0 if on else 0.0
+    put("sensor.out", series.outdoor); put("climate.boiler:heating", asks)
     put("climate.valve:heating", series.valve or [1.0] * len(series.temp))
     put("sensor.ac_w", [(h + c) * 1000 for h, c in zip(series.ac_heat, series.ac_cool)])
     put("climate.ac:heating", [1.0 if h else 0.0 for h in series.ac_heat])
     put("climate.ac:cooling", [1.0 if c else 0.0 for c in series.ac_cool])
     store = H.HistoryStore(os.path.join(tempfile.mkdtemp(), "m.db")); store.setup(); store.write(rows)
-    hub = L.HubSpec(outdoor="sensor.out", thermostat="climate.boiler", ac="climate.ac", ac_power="sensor.ac_w")
+    window = (lambda ts: 9 <= ((ts - TS0) // 300 % 288) / 12 < 22) if night_calls else None
+    hub = L.HubSpec(outdoor="sensor.out", thermostat="climate.boiler", ac="climate.ac",
+                    ac_power="sensor.ac_w", central_open=window)
     rooms = [
         L.RoomSpec("k_sala", "sala", "Sala", ("sensor.sala",), ("climate.valve",), ("vecina",)),
         L.RoomSpec("k_vecina", "vecina", "Vecina", ("sensor.vecina",), (), ("sala",)),
@@ -203,6 +212,21 @@ def test_manager_predicts_an_hour_ahead_and_scores_it_when_it_comes_due():
     assert st.last_error is None and len(st.pending) == 1          # nothing has come due yet
     asyncio.run(mgr.predict(hub, rooms, now + 3600))               # an hour later the first one is due
     assert st.last_error is not None and abs(st.last_error) < 0.6, st.last_error
+
+
+def test_heat_only_counts_while_central_heating_is_available():
+    import asyncio, dataclasses
+    store, hub, rooms = _store_with_two_rooms(night_calls=True)
+    now = TS0 + 21 * 86400
+    mgr = MM.ModelManager(store, _run)
+    asyncio.run(mgr.refit(hub, rooms, now))
+    gated = mgr.states["k_sala"].fit.result.coef["boiler"]
+    close(gated, S.TRUE["boiler"], 0.10)
+
+    naive = MM.ModelManager(store, _run)  # same data, but taking the thermostat at its word
+    asyncio.run(naive.refit(dataclasses.replace(hub, central_open=None), rooms, now))
+    blind = naive.states["k_sala"].fit.result.coef["boiler"]
+    assert blind < 0.85 * S.TRUE["boiler"], blind  # "heating" nights with no heat weaken the boiler
 
 
 def test_stale_readings_give_no_prediction():

@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _pure import load  # noqa: E402
 
 L, D, H, M = load("learn"), load("dataset"), load("history_store"), load("model")
+from datetime import date, time  # noqa: E402
 
 STEP = L.STEP
 
@@ -68,7 +69,19 @@ def main() -> int:
     if not rooms:
         print("No rooms are configured yet.")
         return 1
+    central_open = None
+    try:  # the building's heating window, in this machine's local time
+        window = M.CentralHeatingWindow(
+            date.fromisoformat(conf["central_season_start"]),
+            date.fromisoformat(conf["central_season_end"]),
+            time.fromisoformat(conf["central_hours_start"]),
+            time.fromisoformat(conf["central_hours_end"]),
+        )
+        central_open = lambda ts: window.is_open(datetime.fromtimestamp(ts))  # noqa: E731
+    except (KeyError, ValueError):
+        print("Note: no central heating window in the config; the thermostat is taken at its word.\n")
     hub = L.HubSpec(
+        central_open=central_open,
         outdoor=conf.get("outdoor_temperature_sensor"),
         weather=conf.get("weather_entity"),
         thermostat=conf.get("central_thermostat"),
@@ -95,7 +108,7 @@ def main() -> int:
 
     print("Coverage:  outdoor", share(data.outdoor), "| boiler", share(data.boiler),
           "| AC heat", share(data.ac_heat), "| AC cool", share(data.ac_cool))
-    print(f"           boiler on for {sum(v for v in data.boiler if v) * STEP / 3600:.0f} h,"
+    print(f"           central heat delivered for {sum(v for v in data.boiler if v) * STEP / 3600:.0f} h,"
           f" AC heating {sum(1 for v in data.ac_heat if v) * STEP / 3600:.0f} h\n")
 
     horizon = max(1, round(args.horizon_hours * 3600 / STEP))

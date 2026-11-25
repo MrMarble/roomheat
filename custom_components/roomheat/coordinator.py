@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import date, time
 from typing import Any
 
@@ -265,6 +266,13 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
             ac=conf.get(CONF_AC_UNIT),
             ac_power=conf.get(CONF_AC_POWER_SENSOR),
         )
+        window = self.central_window()
+        central_open = (
+            None
+            if window is None
+            else lambda ts: window.is_open(dt_util.as_local(dt_util.utc_from_timestamp(ts)))
+        )
+        hub = replace(hub, central_open=central_open)
         rooms = [
             RoomSpec(
                 key=r.subentry_id,

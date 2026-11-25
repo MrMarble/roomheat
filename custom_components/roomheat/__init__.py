@@ -18,7 +18,7 @@ from .history_store import HistoryStore
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SENSOR]
 REFIT_EVERY = timedelta(hours=6)
 
 

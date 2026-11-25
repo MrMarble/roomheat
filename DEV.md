@@ -37,8 +37,9 @@ Each room's device gets two entities:
   valves and the weather stay as they are. `last_forecast_error_c` is how far off
   the previous prediction turned out to be.
 
-Settings -> Devices & Services -> RoomHeat -> Download diagnostics shows what the
-history store holds.
+The **Refit thermal models** button (on the RoomHeat device) re-runs the fit now on the
+history stored so far. Settings -> Devices & Services -> RoomHeat -> Download diagnostics
+shows what the history store holds and each room's model.
 
 ### Development tools (not part of the integration)
 

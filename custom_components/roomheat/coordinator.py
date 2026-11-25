@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import replace
 from datetime import date, time
@@ -83,6 +84,7 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
         self.history = history
         self._bucket = BucketAccumulator()
         self.models = ModelManager(history, hass.async_add_executor_job)
+        self._refit_lock = asyncio.Lock()  # one refit at a time, however often it is asked for
         self.last_write: float | None = None  # unix time of the last history write
         self.backfill_result: dict[str, Any] | None = None
 
@@ -288,12 +290,18 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
 
     async def async_refit_models(self, *_: Any) -> None:
         """Re-learn every room from the history store (slow; runs in an executor)."""
-        hub, rooms = self._model_specs()
-        try:
-            await self.models.refit(hub, rooms, dt_util.utcnow().timestamp())
-        except Exception:  # noqa: BLE001 - never break the entry over the model
-            _LOGGER.exception("Refitting the thermal models failed")
+        if self._refit_lock.locked():
+            _LOGGER.debug("A refit is already running; not starting another")
             return
+        async with self._refit_lock:
+            hub, rooms = self._model_specs()
+            now = dt_util.utcnow().timestamp()
+            try:
+                await self.models.refit(hub, rooms, now)
+                await self.models.predict(hub, rooms, now)  # show predictions right away
+            except Exception:  # noqa: BLE001 - never break the entry over the model
+                _LOGGER.exception("Refitting the thermal models failed")
+                return
         _LOGGER.info(
             "Thermal models refitted: %s",
             {self.rooms()[k].name: s.status for k, s in self.models.states.items() if k in self.rooms()},

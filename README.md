@@ -22,7 +22,8 @@ other source. It is inspired by [RoomMind](https://github.com/snazzybean/roommin
   how long radiators keep giving heat. Everything is learned from your data.
 - **Entities.** Per room: *Thermal model* (status and learned numbers),
   *Predicted temperature (1 h)* and *Temperature*. Plus *Central heating
-  available*. Settings → Devices & Services → RoomHeat → Download diagnostics
+  available* and a **Refit thermal models** button, which re-learns every room
+  now instead of waiting for the next automatic refit (every 6 hours). Settings → Devices & Services → RoomHeat → Download diagnostics
   shows what the history holds.
 
 ## Install (HACS)

@@ -20,8 +20,15 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_AC_COP,
     CONF_ADJACENT_ROOMS,
     CONF_AREA_ID,
+    CONF_COMFORT,
+    CONF_ECO,
+    CONF_SCHEDULE,
+    DEFAULT_AC_COP,
+    DEFAULT_COMFORT,
+    DEFAULT_ECO,
     CONF_AC_POWER_SENSOR,
     CONF_CENTRAL_HEAT_PRICE,
     CONF_AC_UNIT,
@@ -53,6 +60,12 @@ _TEMP_SENSOR_SELECTOR = selector.EntitySelector(
 _TEMP_SENSORS_SELECTOR = selector.EntitySelector(
     selector.EntitySelectorConfig(
         domain="sensor", device_class="temperature", multiple=True
+    )
+)
+_TEMPERATURE_NUMBER = selector.NumberSelector(
+    selector.NumberSelectorConfig(
+        min=5, max=30, step=0.5, mode=selector.NumberSelectorMode.BOX,
+        unit_of_measurement="°C",
     )
 )
 
@@ -146,6 +159,11 @@ def _hub_schema(d: Any) -> vol.Schema:
                 default=d.get(CONF_CENTRAL_HEAT_PRICE, DEFAULT_CENTRAL_HEAT_PRICE),
             ): price,
             vol.Required(
+                CONF_AC_COP, default=d.get(CONF_AC_COP, DEFAULT_AC_COP)
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=7, step=0.1, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(
                 CONF_ELECTRICITY_PRICE,
                 default=d.get(CONF_ELECTRICITY_PRICE, DEFAULT_ELECTRICITY_PRICE),
             ): price,
@@ -208,6 +226,15 @@ class RoomSubentryFlow(ConfigSubentryFlow):
             vol.Optional(
                 CONF_DEVICE_SENSORS, default=defaults.get(CONF_DEVICE_SENSORS, [])
             ): _TEMP_SENSORS_SELECTOR,
+            vol.Optional(
+                CONF_SCHEDULE, description={"suggested_value": defaults.get(CONF_SCHEDULE)}
+            ): selector.EntitySelector(selector.EntitySelectorConfig(domain="schedule")),
+            vol.Required(
+                CONF_COMFORT, default=defaults.get(CONF_COMFORT, DEFAULT_COMFORT)
+            ): _TEMPERATURE_NUMBER,
+            vol.Required(
+                CONF_ECO, default=defaults.get(CONF_ECO, DEFAULT_ECO)
+            ): _TEMPERATURE_NUMBER,
             vol.Optional(
                 CONF_VALVES, default=defaults.get(CONF_VALVES, [])
             ): selector.EntitySelector(

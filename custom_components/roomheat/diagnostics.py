@@ -80,8 +80,45 @@ async def async_get_config_entry_diagnostics(
                 "radiator_in_use": room.radiator_in_use,
                 "internal_heat_sensors": list(room.internal_heat),
                 "adjacent": list(room.adjacent_area_ids),
+                "schedule": room.schedule,
+                "comfort_c": room.comfort,
+                "eco_c": room.eco,
             }
             for room in coordinator.rooms().values()
+        },
+        "recommendation": None
+        if coordinator.recommendation is None
+        else {
+            "source": coordinator.recommendation.source,
+            "needed_from": coordinator.recommendation.at and coordinator.recommendation.at.isoformat(),
+            "rooms": list(coordinator.recommendation.rooms),
+            "rooms_not_reached": list(coordinator.recommendation.unserved),
+            "cost_per_kwh": coordinator.recommendation.cost_per_kwh,
+            "reason": coordinator.recommendation.reason,
+        },
+        "targets": {
+            st.config.name: {
+                "target": None
+                if st.target is None
+                else {
+                    "temperature": st.target.temperature,
+                    "level": st.target.level,
+                    "changes_at": st.target.changes_at and st.target.changes_at.isoformat(),
+                },
+                "advice": None
+                if st.plan is None
+                else {
+                    "needs_heat_now": st.plan.needs_heat_now,
+                    "heat_from": st.plan.heat_from and st.plan.heat_from.isoformat(),
+                    "comfort_at": st.plan.comfort_at and st.plan.comfort_at.isoformat(),
+                    "deficit_c": st.plan.deficit_c,
+                    "lead_minutes": st.plan.lead_minutes,
+                    "rate_c_per_h": st.plan.rate_c_per_h,
+                    "rate_assumed": st.plan.rate_assumed,
+                    "reason": st.plan.reason,
+                },
+            }
+            for st in (coordinator.data or {}).values()
         },
         "hub_reading": {
             "central_available": hub.central_available,

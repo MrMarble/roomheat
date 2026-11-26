@@ -15,6 +15,7 @@ from _pure import load  # noqa: E402
 T, D, M = load("thermal"), load("dataset"), load("model")
 G, H = load("signals"), load("history_store")
 L, MM = load("learn"), load("models")
+C = load("control")
 
 
 def close(got, want, rel):
@@ -321,6 +322,67 @@ def test_status_is_judged_where_heating_changes_when_there_is_enough_of_it():
 def test_symmetric_adjacency():
     adj = M.symmetric_adjacency({"a": [], "b": ["a", "ghost", "b"], "c": ["b"]})
     assert adj == {"a": ("b",), "b": ("a", "c"), "c": ("b",)}, adj
+
+
+def _room(**kw):
+    return M.RoomConfig("s", "a", "A", ("t",), **kw)
+
+
+def _hub(open_hours=(9, 22)):
+    from datetime import date, time
+    w = M.CentralHeatingWindow(date(2026, 11, 1), date(2027, 5, 1), time(open_hours[0]), time(open_hours[1]))
+    return M.HubReading(central_window=w)
+
+
+ECON = lambda **kw: M.Economics(**{"central_price": 0.126, "electricity_price": 0.11, "ac_cop": 3.0, "ac_available": True, **kw})
+
+
+def test_target_follows_schedule():
+    from datetime import datetime
+    r, t = _room(schedule="schedule.x", comfort=21, eco=17), datetime(2026, 12, 1, 8)
+    assert (C.resolve_target(r, "on", t).level, C.resolve_target(r, "on", t).temperature) == ("comfort", 21)
+    assert C.resolve_target(r, "off", t).temperature == 17
+    assert C.resolve_target(r, "unavailable", None).level == "eco"
+    assert C.resolve_target(_room(), None, None).level == "comfort"
+
+
+def _rec(rooms, hub, now, **econ):
+    adv = {r.subentry_id: (r, a) for r, a in rooms}
+    return C.recommend(adv, hub, ECON(**econ), now)
+
+
+def test_plan_preheats_before_comfort():
+    from datetime import datetime, timedelta
+    now, comfort_at = datetime(2026, 12, 1, 5), datetime(2026, 12, 1, 8)
+    room, reading = _room(schedule="schedule.x"), M.RoomReading(temperature=19.0)
+    a = C.plan(room, reading, M.Target(17, "eco", comfort_at), now, learned_rate=1.0)
+    assert a.heat_from == comfort_at - timedelta(hours=2) and not a.needs_heat_now
+    assert a.deficit_c == 2.0 and a.lead_minutes == 120 and not a.rate_assumed
+    b = C.plan(room, reading, M.Target(21, "comfort"), now)
+    assert b.needs_heat_now and b.rate_assumed
+    e = C.plan(room, M.RoomReading(temperature=20.9), M.Target(17, "eco", comfort_at), now)
+    assert e.heat_from is None and not e.needs_heat_now
+
+
+def test_one_source_for_the_whole_home():
+    from datetime import datetime
+    now = datetime(2026, 12, 1, 10)
+    a = _room()
+    b = M.RoomConfig("s2", "b", "B", ("t",), radiator_in_use=False)
+    need = lambda r: (r, C.plan(r, M.RoomReading(temperature=19.0), M.Target(21, "comfort"), now))
+    both = [need(a), need(b)]
+    r = _rec(both, _hub(), now)
+    assert r.source == "ac" and set(r.cost_per_kwh) == {"central", "ac"} and r.unserved == ()
+    r = _rec(both, _hub(), now, ac_cop=0.7)          # poor COP: central, and B is not reached
+    assert r.source == "central" and r.unserved == ("B",)
+    early = datetime(2026, 12, 1, 6)                           # central closed at 06:00
+    cold = (a, C.plan(a, M.RoomReading(temperature=19.0), M.Target(21, "comfort"), early))
+    r = _rec([cold], _hub(), early)
+    assert r.source == "ac" and set(r.cost_per_kwh) == {"ac"}
+    r = _rec([need(b)], _hub(), now, ac_available=False)      # radiator unused, no AC
+    assert r.source == "none"
+    ok = (a, C.plan(a, M.RoomReading(temperature=21.0), M.Target(21, "comfort"), now))
+    assert _rec([ok], _hub(), now).source == "none"
 
 
 if __name__ == "__main__":

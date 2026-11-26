@@ -20,6 +20,8 @@ CONF_CENTRAL_HOURS_START = "central_hours_start"  # ISO time
 CONF_CENTRAL_HOURS_END = "central_hours_end"
 CONF_CENTRAL_HEAT_PRICE = "central_heat_price"  # EUR per kWh of heat (marginal; fixed fee is sunk)
 CONF_ELECTRICITY_PRICE = "electricity_price"  # EUR per kWh, final price incl. taxes
+CONF_AC_COP = "ac_cop"  # average heating COP of the heat pump
+DEFAULT_AC_COP = 3.0
 DEFAULT_CENTRAL_HEAT_PRICE = 0.126
 DEFAULT_ELECTRICITY_PRICE = 0.11
 DEFAULT_CENTRAL_HOURS_START = "09:00:00"
@@ -33,6 +35,11 @@ CONF_INTERNAL_HEAT = "internal_heat_sensors"  # power sensors of appliances that
 CONF_VALVES = "valves"  # radiator valve climate entities; open = hvac_action heating
 CONF_DEVICE_SENSORS = "device_temperature_sensors"  # e.g. radiator valve; not averaged
 CONF_LEGACY_TEMPERATURE_SENSOR = "temperature_sensor"  # pre-0.1 single sensor
+CONF_SCHEDULE = "schedule"  # schedule helper: on = comfort, off = eco
+CONF_COMFORT = "comfort_temperature"
+CONF_ECO = "eco_temperature"
+DEFAULT_COMFORT = 21.0
+DEFAULT_ECO = 17.0
 CONF_ADJACENT_ROOMS = "adjacent_rooms"  # list of area_ids
 
 UPDATE_INTERVAL = timedelta(minutes=1)  # probe interval; rows are stored per 5 minutes

@@ -15,7 +15,8 @@
           "ac_power_sensor": "AC power sensor",
           "central_heat_price": "Central heating price",
           "electricity_price": "Electricity price",
-          "weather_entity": "Weather entity"
+          "weather_entity": "Weather entity",
+          "ac_cop": "Heat pump efficiency (COP)"
         },
         "data_description": {
           "outdoor_temperature_sensor": "Optional. Used by the thermal model.",
@@ -26,7 +27,8 @@
           "ac_power_sensor": "Optional. Measured electrical power of the AC; used to know when it really runs and what it costs.",
           "central_heat_price": "Price per kWh of heat consumed. Leave out any fixed fee: it does not change with usage.",
           "electricity_price": "Final price per kWh including taxes. Used to cost the AC.",
-          "weather_entity": "Optional. Replaces the outdoor sensor when it is unavailable, and records cloud cover and wind, which explain solar gain and draughts."
+          "weather_entity": "Optional. Replaces the outdoor sensor when it is unavailable, and records cloud cover and wind, which explain solar gain and draughts.",
+          "ac_cop": "Average heat delivered per unit of electricity when the AC heats. 3 is typical; used to compare its cost per kWh of heat with the central heating."
         }
       },
       "reconfigure": {
@@ -42,7 +44,8 @@
           "ac_power_sensor": "AC power sensor",
           "central_heat_price": "Central heating price",
           "electricity_price": "Electricity price",
-          "weather_entity": "Weather entity"
+          "weather_entity": "Weather entity",
+          "ac_cop": "Heat pump efficiency (COP)"
         },
         "data_description": {
           "outdoor_temperature_sensor": "Optional. Used by the thermal model.",
@@ -53,7 +56,8 @@
           "ac_power_sensor": "Optional. Measured electrical power of the AC; used to know when it really runs and what it costs.",
           "central_heat_price": "Price per kWh of heat consumed. Leave out any fixed fee: it does not change with usage.",
           "electricity_price": "Final price per kWh including taxes. Used to cost the AC.",
-          "weather_entity": "Optional. Replaces the outdoor sensor when it is unavailable, and records cloud cover and wind, which explain solar gain and draughts."
+          "weather_entity": "Optional. Replaces the outdoor sensor when it is unavailable, and records cloud cover and wind, which explain solar gain and draughts.",
+          "ac_cop": "Average heat delivered per unit of electricity when the AC heats. 3 is typical; used to compare its cost per kWh of heat with the central heating."
         }
       }
     },
@@ -77,7 +81,15 @@
           "title": "Add room",
           "description": "Pick the Home Assistant area this room corresponds to.",
           "data": {
-            "area_id": "Area"
+            "area_id": "Area",
+            "schedule": "Comfort schedule",
+            "comfort_temperature": "Comfort temperature",
+            "eco_temperature": "Eco temperature"
+          },
+          "data_description": {
+            "schedule": "Optional. A schedule helper: while it is on the room targets the comfort temperature, otherwise eco. Without one the room always targets comfort.",
+            "comfort_temperature": "Target while the schedule is on.",
+            "eco_temperature": "Target while the schedule is off."
           }
         },
         "sensors": {
@@ -88,7 +100,10 @@
             "valves": "Radiator valves",
             "adjacent_rooms": "Adjacent rooms",
             "radiator_in_use": "Central heating radiator in use",
-            "internal_heat_sensors": "Appliance power sensors"
+            "internal_heat_sensors": "Appliance power sensors",
+            "schedule": "Comfort schedule",
+            "comfort_temperature": "Comfort temperature",
+            "eco_temperature": "Eco temperature"
           },
           "data_description": {
             "temperature_sensors": "Sensors placed in the room; the room temperature is their average. Pre-filled from this area when one is found.",
@@ -96,7 +111,10 @@
             "valves": "Optional. The room's radiator valves (climate entities). Open while their action is heating; the model uses this to know when the radiators really heat this room. Leave empty for radiators without a controllable valve.",
             "adjacent_rooms": "Other configured rooms that share a wall, floor or open door with this one.",
             "radiator_in_use": "Turn this off if the room's radiator is normally off (for example a room kept warm by equipment). The central heating is then ignored for this room instead of being learned as an effect it does not have.",
-            "internal_heat_sensors": "Optional. Power sensors of appliances that warm the room, such as computers. Almost every watt becomes heat, so the model can learn how much each kW warms the room."
+            "internal_heat_sensors": "Optional. Power sensors of appliances that warm the room, such as computers. Almost every watt becomes heat, so the model can learn how much each kW warms the room.",
+            "schedule": "Optional. A schedule helper: while it is on the room targets the comfort temperature, otherwise eco. Without one the room always targets comfort.",
+            "comfort_temperature": "Target while the schedule is on.",
+            "eco_temperature": "Target while the schedule is off."
           }
         },
         "reconfigure": {
@@ -107,11 +125,17 @@
             "valves": "Radiator valves",
             "adjacent_rooms": "Adjacent rooms",
             "radiator_in_use": "Central heating radiator in use",
-            "internal_heat_sensors": "Appliance power sensors"
+            "internal_heat_sensors": "Appliance power sensors",
+            "schedule": "Comfort schedule",
+            "comfort_temperature": "Comfort temperature",
+            "eco_temperature": "Eco temperature"
           },
           "data_description": {
             "radiator_in_use": "Turn this off if the room's radiator is normally off (for example a room kept warm by equipment). The central heating is then ignored for this room instead of being learned as an effect it does not have.",
-            "internal_heat_sensors": "Optional. Power sensors of appliances that warm the room, such as computers. Almost every watt becomes heat, so the model can learn how much each kW warms the room."
+            "internal_heat_sensors": "Optional. Power sensors of appliances that warm the room, such as computers. Almost every watt becomes heat, so the model can learn how much each kW warms the room.",
+            "schedule": "Optional. A schedule helper: while it is on the room targets the comfort temperature, otherwise eco. Without one the room always targets comfort.",
+            "comfort_temperature": "Target while the schedule is on.",
+            "eco_temperature": "Target while the schedule is off."
           }
         }
       },

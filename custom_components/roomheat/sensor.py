@@ -28,12 +28,15 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator = entry.runtime_data
+    async_add_entities([RecommendedHeatSource(coordinator, entry.entry_id)])
     for subentry_id in coordinator.data:
         async_add_entities(
             [
                 RoomTemperatureSensor(coordinator, subentry_id),
                 RoomThermalModelSensor(coordinator, subentry_id),
                 RoomPredictedTemperatureSensor(coordinator, subentry_id),
+                RoomTargetTemperatureSensor(coordinator, subentry_id),
+                RoomHeatFromSensor(coordinator, subentry_id),
             ],
             config_subentry_id=subentry_id,
         )
@@ -179,4 +182,109 @@ class RoomPredictedTemperatureSensor(_RoomModelEntity):
             "predicted_for": _iso(model.predicted_for),
             "last_forecast_error_c": None if model.last_error is None else round(model.last_error, 2),
             "model_status": model.status,
+        }
+
+
+class _RoomPlanEntity(_RoomModelEntity):
+    """Base for the entities that report the room's target and advice."""
+
+    @property
+    def _state(self):
+        return self.coordinator.data[self._subentry_id]
+
+    @property
+    def _advice(self):
+        return self._state.plan
+
+
+class RoomTargetTemperatureSensor(_RoomPlanEntity):
+    """The temperature the room should have right now, from its schedule."""
+
+    _attr_name = "Target temperature"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_display_precision = 1
+
+    def __init__(self, coordinator: RoomHeatCoordinator, subentry_id: str) -> None:
+        super().__init__(coordinator, subentry_id, "target_temperature")
+
+    @property
+    def native_value(self) -> float | None:
+        target = self._state.target
+        return None if target is None else target.temperature
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        target, room = self._state.target, self._state.config
+        if target is None:
+            return {}
+        return {
+            "level": target.level,
+            "changes_at": None if target.changes_at is None else target.changes_at.isoformat(),
+            "schedule": room.schedule,
+            "comfort_c": room.comfort,
+            "eco_c": room.eco,
+        }
+
+
+class RoomHeatFromSensor(_RoomPlanEntity):
+    """When the room has to start heating to be at comfort temperature on time."""
+
+    _attr_name = "Heat needed from"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_icon = "mdi:radiator"
+
+    def __init__(self, coordinator: RoomHeatCoordinator, subentry_id: str) -> None:
+        super().__init__(coordinator, subentry_id, "heat_needed_from")
+
+    @property
+    def native_value(self) -> datetime | None:
+        return None if self._advice is None else self._advice.heat_from
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        a = self._advice
+        if a is None:
+            return {}
+        return {
+            "heat_needed_now": a.needs_heat_now,
+            "comfort_at": None if a.comfort_at is None else a.comfort_at.isoformat(),
+            "deficit_c": a.deficit_c,
+            "lead_minutes": a.lead_minutes,
+            "heating_rate_c_per_h": a.rate_c_per_h,
+            "heating_rate_is_assumed": a.rate_assumed,
+            "note": a.reason,
+        }
+
+
+class RecommendedHeatSource(CoordinatorEntity[RoomHeatCoordinator], SensorEntity):
+    """The single heat source advised for the whole home. Advice only."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Recommended heat source"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["central", "ac", "none"]
+    _attr_icon = "mdi:fire-circle"
+
+    def __init__(self, coordinator: RoomHeatCoordinator, entry_id: str) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry_id}_recommended_heat_source"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry_id)}, name="RoomHeat")
+
+    @property
+    def native_value(self) -> str | None:
+        rec = self.coordinator.recommendation
+        return None if rec is None else rec.source
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        rec = self.coordinator.recommendation
+        if rec is None:
+            return {}
+        return {
+            "needed_from": None if rec.at is None else rec.at.isoformat(),
+            "rooms": list(rec.rooms),
+            "rooms_not_reached": list(rec.unserved),
+            "cost_eur_per_kwh_of_heat": rec.cost_per_kwh,
+            "reason": rec.reason,
         }

@@ -17,7 +17,7 @@ from homeassistant.util import dt as dt_util
 
 from . import control
 from .history_store import SRC_LIVE, HistoryStore
-from .learn import HubSpec, RoomSpec
+from .learn import HubSpec, RoomSpec, describe
 from .models import ModelManager
 from .sampling import BucketAccumulator
 from .signals import (
@@ -32,7 +32,18 @@ from .signals import (
 )
 from .units import signal_value
 from .const import (
+    CONF_AC_COP,
     CONF_AC_POWER_SENSOR,
+    CONF_CENTRAL_HEAT_PRICE,
+    CONF_COMFORT,
+    CONF_ECO,
+    CONF_ELECTRICITY_PRICE,
+    CONF_SCHEDULE,
+    DEFAULT_AC_COP,
+    DEFAULT_CENTRAL_HEAT_PRICE,
+    DEFAULT_COMFORT,
+    DEFAULT_ECO,
+    DEFAULT_ELECTRICITY_PRICE,
     CONF_AC_UNIT,
     CONF_ADJACENT_ROOMS,
     CONF_AREA_ID,
@@ -55,7 +66,9 @@ from .const import (
 )
 from .model import (
     CentralHeatingWindow,
+    Economics,
     HubReading,
+    Recommendation,
     RoomConfig,
     RoomReading,
     RoomState,
@@ -83,6 +96,7 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
             update_interval=UPDATE_INTERVAL,
         )
         self.hub = HubReading()
+        self.recommendation: Recommendation | None = None
         self.history = history
         self._bucket = BucketAccumulator()
         self.models = ModelManager(history, hass.async_add_executor_job)
@@ -121,6 +135,9 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
                 radiator_in_use=sub.data.get(CONF_RADIATOR_IN_USE, True),
                 internal_heat=tuple(sub.data.get(CONF_INTERNAL_HEAT, [])),
                 adjacent_area_ids=adjacent[area_id],
+                schedule=sub.data.get(CONF_SCHEDULE) or None,
+                comfort=float(sub.data.get(CONF_COMFORT, DEFAULT_COMFORT)),
+                eco=float(sub.data.get(CONF_ECO, DEFAULT_ECO)),
             )
         return rooms
 
@@ -175,6 +192,21 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
             },
         )
 
+    def _read_schedule(self, room: RoomConfig) -> tuple[str | None, Any]:
+        """(state, next_event) of the room's schedule helper; (None, None) if unreadable."""
+        state = self.hass.states.get(room.schedule) if room.schedule else None
+        if state is None or state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+            return None, None
+        next_event = state.attributes.get("next_event")
+        return state.state, dt_util.as_local(next_event) if next_event else None
+
+    def _learned_rate(self, subentry_id: str) -> float | None:
+        """Learned central heating gain in °C/h for a room, if the model has one."""
+        model = self.models.states.get(subentry_id)
+        if model is None or model.fit is None:
+            return None
+        return describe(model.fit.result)["central_heating_gain_c_per_h"]
+
     # -- cycle ---------------------------------------------------------------
 
     async def _async_update_data(self) -> dict[str, RoomState]:
@@ -214,14 +246,26 @@ class RoomHeatCoordinator(DataUpdateCoordinator[dict[str, RoomState]]):
                 if area_id in by_area
             }
 
+        econ = Economics(
+            central_price=float(conf.get(CONF_CENTRAL_HEAT_PRICE, DEFAULT_CENTRAL_HEAT_PRICE)),
+            electricity_price=float(conf.get(CONF_ELECTRICITY_PRICE, DEFAULT_ELECTRICITY_PRICE)),
+            ac_cop=float(conf.get(CONF_AC_COP, DEFAULT_AC_COP)),
+            ac_available=bool(conf.get(CONF_AC_UNIT)),
+        )
+
         # 2..3 resolve target and plan; 4. actuation does not exist yet
         states: dict[str, RoomState] = {}
         for sid, room in rooms.items():
             reading = readings[sid]
-            target = control.resolve_target(room, reading, self.hub, now)
-            plan = control.plan(room, reading, target, self.hub, now)
+            target = control.resolve_target(room, *self._read_schedule(room))
+            plan = control.plan(
+                room, reading, target, now, self._learned_rate(sid)
+            )
             states[sid] = RoomState(room, reading, target, plan)
 
+        self.recommendation = control.recommend(
+            {sid: (st.config, st.plan) for sid, st in states.items()}, self.hub, econ, now
+        )
         await self._async_record(now.timestamp())
         return states
 

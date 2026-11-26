@@ -23,6 +23,14 @@ other source. It is inspired by [RoomMind](https://github.com/snazzybean/roommin
 - **A thermal model per room.** Learns exchange with outdoors and neighbours, how
   much the central heating and the AC heat the room (gated by the valves), and
   how long radiators keep giving heat. Everything is learned from your data.
+- **Targets and advice.** Give a room a `schedule` helper and comfort/eco
+  temperatures: while the schedule is on it targets comfort, otherwise eco (no
+  schedule = always comfort). RoomHeat then reports *Target temperature*, *Heat
+  needed from* (when to start heating to reach comfort on time) and a hub-level *Recommended
+  heat source* (one for the whole home, never both: central or AC, cheapest per kWh of heat: central price vs.
+  electricity price / heat-pump COP, and only central when its window is open).
+  Advice only; nothing is controlled. Until the model has learned a heating gain
+  the lead time assumes 1 °C/h and says so.
 - **Entities.** Per room: *Thermal model* (status and learned numbers),
   *Predicted temperature (1 h)* and *Temperature*. Plus *Central heating
   available* and a **Refit thermal models** button, which re-learns every room

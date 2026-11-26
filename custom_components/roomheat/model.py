@@ -38,6 +38,9 @@ class RoomConfig:
     radiator_in_use: bool = True
     internal_heat: tuple[str, ...] = ()
     adjacent_area_ids: tuple[str, ...] = ()
+    schedule: str | None = None  # schedule entity; None = always comfort
+    comfort: float = 21.0
+    eco: float = 17.0
 
 
 @dataclass(slots=True)
@@ -51,6 +54,51 @@ class RoomReading:
     adjacent_temperatures: dict[str, float | None] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class Target:
+    """The temperature a room should have now."""
+
+    temperature: float
+    level: str  # "comfort" or "eco"
+    changes_at: datetime | None = None  # when the schedule next flips
+
+
+@dataclass(frozen=True, slots=True)
+class Economics:
+    """What each kWh of heat costs, and which sources exist."""
+
+    central_price: float  # EUR per kWh of heat
+    electricity_price: float  # EUR per kWh
+    ac_cop: float
+    ac_available: bool
+
+
+@dataclass(frozen=True, slots=True)
+class Advice:
+    """What the room will need and from where. Advisory only: nothing acts on it."""
+
+    needs_heat_now: bool
+    heat_from: datetime | None  # when heating must start to reach comfort on time
+    comfort_at: datetime | None
+    deficit_c: float
+    lead_minutes: int | None
+    rate_c_per_h: float
+    rate_assumed: bool  # True: no learned heating gain yet, a default was used
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class Recommendation:
+    """The one heat source for the whole home. Central heating and the AC are never both advised."""
+
+    source: str  # "central", "ac" or "none"
+    at: datetime | None  # when the source is needed from
+    rooms: tuple[str, ...]  # rooms that drive the decision
+    unserved: tuple[str, ...]  # of those, rooms the chosen source does not reach
+    cost_per_kwh: dict[str, float]  # EUR per kWh of heat, per usable source
+    reason: str
+
+
 @dataclass(slots=True)
 class RoomState:
     """Result of one control cycle for one room."""
@@ -58,8 +106,8 @@ class RoomState:
     config: RoomConfig
     reading: RoomReading
     # Filled by later pipeline stages; None while they are stubs.
-    target: object | None = None
-    plan: object | None = None
+    target: Target | None = None
+    plan: Advice | None = None
 
 
 @dataclass(frozen=True, slots=True)
